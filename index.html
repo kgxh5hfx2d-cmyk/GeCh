@@ -17,7 +17,7 @@
         
         body { 
             background-color: var(--bg); color: var(--text); font-family: 'Plus Jakarta Sans', sans-serif; 
-            transition: 0.3s; padding-bottom: 60px; -webkit-tap-highlight-color: transparent;
+            transition: 0.3s; padding-bottom: 40px; -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
         }
         .ios-blur { background: rgba(22, 27, 34, 0.8); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--divider); }
@@ -41,6 +41,17 @@
             outline: none; height: 36px; width: 100%; -webkit-appearance: none;
         }
         .safe-area { padding-top: env(safe-area-inset-top); }
+
+        .brand-footer { 
+            text-align: center; 
+            padding: 60px 0 40px; 
+            letter-spacing: 8px; 
+            font-weight: 900; 
+            font-size: 24px; 
+            color: var(--accent);
+            text-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
+            opacity: 1;
+        }
     </style>
 </head>
 <body class="safe-area">
@@ -111,12 +122,20 @@
                     <select id="kirche" onchange="saveAndCalc()" class="ios-select w-32"><option value="0">Keine</option><option value="0.08">8%</option><option value="0.09">9%</option></select>
                 </div>
             </div>
+            
+            <button onclick="resetAllShifts()" class="w-full bg-red-600 text-white font-black py-4 rounded-2xl mt-4 shadow-xl active:scale-95 transition-transform">
+                RESET
+            </button>
+        </div>
+
+        <div class="brand-footer">
+            MSNR DESIGN
         </div>
     </main>
 
     <script>
         const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
-        const shiftH = { 'F': 7.7, 'S': 7.7, 'N': 10, 'Sp': 8.5, 'U': 7.7, 'X': 0 };
+        const shiftH = { 'F': 7.0, 'S': 7.0, 'N': 10, 'Sp': 8.0, 'U': 7.7, 'X': 0 };
         let userPlan = JSON.parse(localStorage.getItem('springer_v5')) || {};
 
         function getHolidays(y) {
@@ -130,6 +149,7 @@
 
         function init() {
             const ms = document.getElementById('monthSelect'), ys = document.getElementById('yearSelect'), now = new Date();
+            ms.innerHTML = ''; ys.innerHTML = '';
             monthNames.forEach((n,i) => ms.innerHTML += `<option value="${i}" ${i===now.getMonth()?'selected':''}>${n}</option>`);
             for(let i=now.getFullYear()-1; i<now.getFullYear()+5; i++) ys.innerHTML += `<option value="${i}" ${i===now.getFullYear()?'selected':''}>${i}</option>`;
             
@@ -146,6 +166,17 @@
                 document.getElementById('btn-'+tab).classList.toggle('active', tab === t);
                 document.getElementById('btn-'+tab).classList.toggle('text-gray-400', tab !== t);
             });
+        }
+
+        // RESET FUNKTION: Löscht Plan und aktualisiert sofort die Ansicht
+        function resetAllShifts() {
+            if(confirm("Alle Schichten im Kalender auf 'X' zurücksetzen?")) {
+                userPlan = {}; 
+                localStorage.setItem('springer_v5', JSON.stringify(userPlan));
+                renderCalendar(); 
+                saveAndCalc();
+                alert("Erfolgreich zurückgesetzt!");
+            }
         }
 
         function renderCalendar() {
@@ -182,13 +213,11 @@
         }
 
         function saveAndCalc() {
-            // Speichern
             ['tarif', 'sollstunden', 'h_ue', 'st_klasse', 'kinder', 'kirche'].forEach(id => {
                 localStorage.setItem('p_'+id, document.getElementById(id).value);
             });
             localStorage.setItem('springer_v5', JSON.stringify(userPlan));
             
-            // Werte holen
             const base = parseFloat(document.getElementById('tarif').value) || 0;
             const soll = parseFloat(document.getElementById('sollstunden').value) || 167;
             const stdLohn = base/soll;
@@ -200,22 +229,18 @@
             const y=parseInt(document.getElementById('yearSelect').value);
             const hols=getHolidays(y);
 
-            // Alle Tage des gewählten Monats durchlaufen
             for (let d=1; d<=31; d++) {
                 const k = `${y}-${m}-${d}`; 
                 if (userPlan[k]) {
                     const e = userPlan[k];
                     const h = parseFloat(e.hours) || 0;
                     const dt = new Date(y, m, d);
-                    
                     if(dt.getMonth() !== m) continue;
-
                     ist += h;
                     if (e.type !== 'X' && e.type !== 'U' && h > 0) {
                         if (hols[k]) zFt += h; 
                         else if (dt.getDay()===0) zSo += h; 
                         else if (dt.getDay()===6) zSa += h;
-                        
                         if (e.type==='N') zN += h;
                     }
                 }
@@ -224,28 +249,23 @@
             const zTotal = (zFt*stdLohn*1.35) + (zSo*stdLohn*0.5) + (zSa*stdLohn*0.25) + (zN*stdLohn*0.25);
             const ueBrutto = (parseFloat(document.getElementById('h_ue').value)||0)*stdLohn*1.25;
             const brutto = base + ueBrutto;
-            
             let stSatz = 0.31; 
             if(stKl === 3) stSatz = 0.21; 
             if(stKl === 5 || stKl === 6) stSatz = 0.43;
-            
             const netto = (brutto * (1 - (stSatz + (kiSt * 0.08)))) + zTotal;
 
-            // Anzeige (Sicherheitscheck für IDs)
-            if(document.getElementById('planIst')) document.getElementById('planIst').innerText = ist.toFixed(1) + "h";
-            if(document.getElementById('statN')) document.getElementById('statN').innerText = zN.toFixed(1) + "h";
-            if(document.getElementById('statSo')) document.getElementById('statSo').innerText = zSo.toFixed(1) + "h";
-            if(document.getElementById('statFt')) document.getElementById('statFt').innerText = zFt.toFixed(1) + "h";
-            if(document.getElementById('finalNetto')) document.getElementById('finalNetto').innerText = netto.toLocaleString('de-DE',{minimumFractionDigits:2});
-            if(document.getElementById('bruttoLabel')) document.getElementById('bruttoLabel').innerText = Math.round(brutto).toLocaleString('de-DE') + " €";
-            if(document.getElementById('taxFreeLabel')) document.getElementById('taxFreeLabel').innerText = Math.round(zTotal).toLocaleString('de-DE') + " €";
+            document.getElementById('planIst').innerText = ist.toFixed(1) + "h";
+            document.getElementById('statN').innerText = zN.toFixed(1) + "h";
+            document.getElementById('statSo').innerText = zSo.toFixed(1) + "h";
+            document.getElementById('statFt').innerText = zFt.toFixed(1) + "h";
+            document.getElementById('finalNetto').innerText = netto.toLocaleString('de-DE',{minimumFractionDigits:2});
+            document.getElementById('bruttoLabel').innerText = Math.round(brutto).toLocaleString('de-DE') + " €";
+            document.getElementById('taxFreeLabel').innerText = Math.round(zTotal).toLocaleString('de-DE') + " €";
             
             const diff = ist - soll;
             const saldoEl = document.getElementById('planSaldo');
-            if(saldoEl) {
-                saldoEl.innerText = (diff>=0?'+':'')+diff.toFixed(1)+"h";
-                saldoEl.className = `text-[10px] font-bold px-2 py-0.5 rounded-full ${diff>=0?'bg-emerald-500/20 text-emerald-400':'bg-red-500/20 text-red-400'}`;
-            }
+            saldoEl.innerText = (diff>=0?'+':'')+diff.toFixed(1)+"h";
+            saldoEl.className = `text-[10px] font-bold px-2 py-0.5 rounded-full ${diff>=0?'bg-emerald-500/20 text-emerald-400':'bg-red-500/20 text-red-400'}`;
         }
 
         function shareWhatsApp() {
