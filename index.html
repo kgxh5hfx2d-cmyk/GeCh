@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lohn Check Pro - Tarif Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #007aff; --bg: #f2f2f7; --card: #ffffff; --text: #1c1c1e;
+            --border: #d1d1d6; --success: #34c759; --footer-bg: rgba(255, 255, 255, 0.9);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #000000; --card: #1c1c1e; --text: #ffffff;
+                --border: #38383a; --footer-bg: rgba(28, 28, 30, 0.9);
+            }
+        }
+        * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background: var(--bg); color: var(--text); margin: 0; padding-bottom: 200px; transition: 0.3s; }
+        header { background: var(--card); backdrop-filter: blur(20px); position: sticky; top: 0; padding: 15px; text-align: center; border-bottom: 0.5px solid var(--border); z-index: 1000; }
+        main { max-width: 500px; margin: 0 auto; padding: 15px; }
+        .config-card { background: var(--card); border-radius: 14px; padding: 12px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+        .row:last-child { border-bottom: none; }
+        input, select { border: none; color: var(--primary); font-size: 15px; text-align: right; outline: none; background: transparent; font-weight: 600; }
+        .day-card { background: var(--card); border-radius: 12px; padding: 12px; margin-bottom: 8px; border-left: 4px solid var(--border); }
+        .day-card.weekend { border-left-color: #ff9500; }
+        .day-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 600; font-size: 13px; }
+        .shift-select { width: 100%; padding: 8px; background: var(--bg); border-radius: 8px; margin-bottom: 10px; border: none; color: var(--text); font-size: 14px; }
+        .time-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; font-size: 11px; }
+        .time-grid input { background: var(--bg); padding: 5px; border-radius: 6px; width: 100%; text-align: center; color: var(--text); }
+        .footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--footer-bg); backdrop-filter: blur(20px); padding: 15px 20px; border-top: 0.5px solid var(--border); display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .result-box { grid-column: span 2; display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px; border-bottom: 0.5px solid var(--border); padding-bottom: 8px; }
+        .netto-label { color: var(--success); font-size: 28px; font-weight: 800; }
+        .brutto-label { font-size: 14px; opacity: 0.7; }
+        .stat { font-size: 12px; display: flex; flex-direction: column; }
+        .stat b { font-size: 14px; color: var(--primary); }
+        .btn-print { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 10px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 10px; }
+        @media print {
+            header, .config-card, .footer, .shift-select, .time-grid, .btn-print, .holiday-label input { display: none !important; }
+            .day-card { border: 1px solid #eee; page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+
+<header><h1 style="font-size:18px; margin:0;">Lohn Check Pro (Tarif ETV)</h1></header>
+
+<main>
+    <div class="config-card">
+        <div class="row"><label>Monat</label><input type="month" id="monthPicker"></div>
+        <div class="row"><label>Soll-Stunden</label><input type="number" id="targetHours" value="160"></div>
+        <div class="row">
+            <label>Lohnbasis</label>
+            <select id="wageType" onchange="toggleWageInput()">
+                <option value="tarif">Tarif ETV (4.412€)</option>
+                <option value="stunden">Stundenlohn (€)</option>
+            </select>
+        </div>
+        <div class="row" id="stundenlohnRow" style="display:none;"><label>Lohn / Std</label><input type="number" id="baseWage" value="18.50" step="0.10"></div>
+        <div class="row">
+            <label>Steuerklasse</label>
+            <select id="taxClass">
+                <option value="1">Klasse 1</option><option value="2">Klasse 2</option>
+                <option value="3">Klasse 3</option><option value="4">Klasse 4</option>
+                <option value="5">Klasse 5</option><option value="6">Klasse 6</option>
+            </select>
+        </div>
+        <div class="row">
+            <label>Kinder</label>
+            <select id="hasChildren">
+                <option value="0">Nein</option><option value="1">Ja (0,5)</option>
+                <option value="2">Ja (1,0+)</option>
+            </select>
+        </div>
+        <div class="row">
+            <label>Kirchensteuer</label>
+            <select id="churchTax">
+                <option value="0">Nein</option><option value="1">Ja</option>
+            </select>
+        </div>
+        <button class="btn-print" onclick="window.print()">Monat drucken / PDF</button>
+    </div>
+    <div id="daysContainer"></div>
+</main>
+
+<div class="footer">
+    <div class="result-box">
+        <div>
+            <div class="brutto-label">Brutto: <span id="bruttoVal">0,00 €</span></div>
+            <div class="netto-label" id="nettoVal">0,00 €</div>
+        </div>
+        <div style="text-align:right">
+            <button onclick="calculate()" style="background:var(--primary); color:white; border:none; padding:10px 18px; border-radius:10px; font-weight:700; font-size:14px;">Update</button>
+        </div>
+    </div>
+    <div class="stat">Ist-Stunden <b id="istHours">0.00</b></div>
+    <div class="stat" style="text-align:right">Überstunden <b id="overHours">0.00</b></div>
+</div>
+
+<script>
+    const presets = {
+        'frueh': { s: '06:00', e: '13:00', b: 0 }, 'spaet': { s: '13:00', e: '20:00', b: 0 },
+        'nacht': { s: '20:00', e: '06:00', b: 0 }, 'tag': { s: '08:00', e: '16:00', b: 30 },
+        'urlaub': { s: '08:00', e: '16:00', b: 0 }, 'frei': { s: '', e: '', b: 0 }
+    };
+
+    window.onload = () => {
+        const now = new Date();
+        const mStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, '0');
+        document.getElementById('monthPicker').value = localStorage.getItem('month') || mStr;
+        loadSettings();
+        render();
+    };
+
+    function toggleWageInput() {
+        const isStunden = document.getElementById('wageType').value === 'stunden';
+        document.getElementById('stundenlohnRow').style.display = isStunden ? 'flex' : 'none';
+        calculate();
+    }
+
+    function loadSettings() {
+        const s = JSON.parse(localStorage.getItem('user_settings_pro')) || { target: 160, wage: 18.50, tax: 1, type: 'tarif', child: 0, church: 0 };
+        document.getElementById('targetHours').value = s.target;
+        document.getElementById('baseWage').value = s.wage;
+        document.getElementById('taxClass').value = s.tax;
+        document.getElementById('wageType').value = s.type;
+        document.getElementById('hasChildren').value = s.child;
+        document.getElementById('churchTax').value = s.church;
+        toggleWageInput();
+    }
+
+    function saveSettings() {
+        localStorage.setItem('user_settings_pro', JSON.stringify({
+            target: document.getElementById('targetHours').value,
+            wage: document.getElementById('baseWage').value,
+            tax: document.getElementById('taxClass').value,
+            type: document.getElementById('wageType').value,
+            child: document.getElementById('hasChildren').value,
+            church: document.getElementById('churchTax').value
+        }));
+        calculate();
+    }
+
+    const inputs = ['targetHours', 'baseWage', 'taxClass', 'wageType', 'hasChildren', 'churchTax'];
+    inputs.forEach(id => document.getElementById(id).onchange = saveSettings);
+    document.getElementById('monthPicker').onchange = (e) => { localStorage.setItem('month', e.target.value); render(); };
+
+    function render() {
+        const [y, m] = document.getElementById('monthPicker').value.split('-');
+        const daysInMonth = new Date(y, m, 0).getDate();
+        const saved = JSON.parse(localStorage.getItem(`data_${y}_${m}`)) || {};
+        const container = document.getElementById('daysContainer'); container.innerHTML = '';
+
+        for(let d = 1; d <= daysInMonth; d++) {
+            const date = new Date(y, m-1, d), key = `d${d}`;
+            const val = saved[key] || { s:'', e:'', b:0, preset:'frei', isH: false };
+            const div = document.createElement('div');
+            div.className = `day-card ${ (date.getDay()===0||date.getDay()===6)?'weekend':'' }`;
+            div.innerHTML = `
+                <div class="day-header">
+                    <span>${date.toLocaleDateString('de-DE', {weekday:'short', day:'2-digit', month:'short'})}</span>
+                    <label style="font-size:11px;color:#ff3b30;"><input type="checkbox" onchange="updateDay(${d}, 'isH', this.checked)" ${val.isH?'checked':''}> Feiertag</label>
+                </div>
+                <select class="shift-select" onchange="applyPreset(${d}, this.value)">
+                    <option value="frei" ${val.preset==='frei'?'selected':''}>Frei</option>
+                    <option value="frueh" ${val.preset==='frueh'?'selected':''}>Früh (06-13)</option>
+                    <option value="spaet" ${val.preset==='spaet'?'selected':''}>Spät (13-20)</option>
+                    <option value="nacht" ${val.preset==='nacht'?'selected':''}>Nacht (20-06)</option>
+                    <option value="tag" ${val.preset==='tag'?'selected':''}>Tag/Springer (08-16)</option>
+                    <option value="urlaub" ${val.preset==='urlaub'?'selected':''}>Urlaub (8h)</option>
+                </select>
+                <div class="time-grid">
+                    <input type="time" id="s${d}" value="${val.s}" onchange="updateDay(${d}, 's', this.value)">
+                    <input type="time" id="e${d}" value="${val.e}" onchange="updateDay(${d}, 'e', this.value)">
+                    <input type="number" id="b${d}" placeholder="Min" value="${val.b}" onchange="updateDay(${d}, 'b', this.value)">
+                </div>`;
+            container.appendChild(div);
+        }
+        calculate();
+    }
+
+    function updateDay(d, field, val) {
+        const [y, m] = document.getElementById('monthPicker').value.split('-');
+        const data = JSON.parse(localStorage.getItem(`data_${y}_${m}`)) || {};
+        if(!data[`d${d}`]) data[`d${d}`] = { s:'', e:'', b:0, preset:'frei' };
+        data[`d${d}`][field] = val; localStorage.setItem(`data_${y}_${m}`, JSON.stringify(data));
+        calculate();
+    }
+
+    function applyPreset(d, type) {
+        const p = presets[type]; document.getElementById(`s${d}`).value = p.s; document.getElementById(`e${d}`).value = p.e; document.getElementById(`b${d}`).value = p.b;
+        updateDay(d, 's', p.s); updateDay(d, 'e', p.e); updateDay(d, 'b', p.b); updateDay(d, 'preset', type);
+    }
+
+    function calculate() {
+        const type = document.getElementById('wageType').value;
+        const target = parseFloat(document.getElementById('targetHours').value) || 160;
+        let base = (type === 'tarif') ? (4412 / target) : parseFloat(document.getElementById('baseWage').value);
+        const [y, m] = document.getElementById('monthPicker').value.split('-');
+        const data = JSON.parse(localStorage.getItem(`data_${y}_${m}`)) || {};
+        let totalHrs = 0, bonus = 0;
+
+        Object.keys(data).forEach(k => {
+            const d = data[k], date = new Date(y, m-1, k.replace('d',''));
+            if(!d.s || !d.e) return;
+            const s = d.s.split(':'), e = d.e.split(':');
+            let sM = s[0]*60 + s[1]*1, eM = e[0]*60 + e[1]*1; if(eM <= sM) eM += 1440;
+            let h = (eM - sM - (d.b*1||0))/60; totalHrs += h;
+            if(d.isH) bonus += h * base * (date.getDay()===0 ? 0.75 : 1.75);
+            else if(date.getDay()===6) bonus += (sM >= 780) ? h*base*0.5 : h*base*0.15;
+            for(let min=sM; min<eM; min++) { let currH = (min/60)%24; if(currH >= 20 || currH < 5) bonus += (base*0.5/60); }
+        });
+
+        let over = Math.max(0, totalHrs - target); bonus += over * base * 0.25;
+        let brutto = (type === 'tarif' ? 4412 : (totalHrs * base)) + bonus;
+        
+        // Erweiterte Netto-Schätzung
+        let taxClass = parseInt(document.getElementById('taxClass').value);
+        let kids = parseInt(document.getElementById('hasChildren').value);
+        let church = parseInt(document.getElementById('churchTax').value);
+        
+        let baseRate = { 1: 0.58, 2: 0.61, 3: 0.68, 4: 0.58, 5: 0.52, 6: 0.48 }[taxClass];
+        if(kids > 0) baseRate += (kids * 0.012); // Kinderfreibetrag Effekt
+        if(church > 0) baseRate -= 0.015; // Kirchensteuer Abzug
+        
+        let netto = brutto * baseRate;
+
+        document.getElementById('bruttoVal').innerText = brutto.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+        document.getElementById('nettoVal').innerText = netto.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+        document.getElementById('istHours').innerText = totalHrs.toFixed(2);
+        document.getElementById('overHours').innerText = over.toFixed(2);
+    }
+</script>
+</body>
+</html>
